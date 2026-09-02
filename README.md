@@ -70,6 +70,24 @@ Når talegjenkjenningen ikke får plass på kortet, faller den tilbake til prose
 
 `llama-server` bruker 15,6 sekunder på å starte, og avslutter seg selv etter fem minutter uten bruk for å frigjøre minne på kortet. Hver diktering som følger etter en lengre pause betaler oppstarten på nytt. Dette er uavhengig av hvilken Whisper-modell som er valgt, og forveksles lett med treg talegjenkjenning.
 
+Nedstengingen er tilsiktet, ikke en feil. En modell på 3 GB som blir liggende, opptar kortet døgnet rundt og fortrenger både nettleseren og talegjenkjenningen. Programmet gir derfor fra seg minnet og betaler oppstarten på nytt ved behov. Avveiningen passer et system som brukes i lange økter, men er dårlig tilpasset diktering, som består av korte økter med pauser mellom.
+
+Oppstarten fordeler seg på fire ledd: lesing av modellfilen fra disk, overføring av vektene til kortet, kompilering av Vulkan-rutinene, og venting på at serveren svarer på helsesjekk. Det tredje leddet er det dyreste, og forklarer et ellers underlig forhold: talegjenkjenningen laster en modell på 3,1 GB på 9,7 sekunder, mens opprydningsmodellen bruker 15,6 sekunder på 2,0 GB. Større fil, kortere tid. Forskjellen er at talegjenkjenningen kjører et CUDA-bygg med ferdigkompilerte rutiner, mens språkmodellen kjører Vulkan, som kompilerer ved hver oppstart.
+
+Dette lar seg ikke konfigurere bort. Programmet leverer ett enkelt llama-bygg, med fallback til prosessoren:
+
+```
+%APPDATA%\open-whispr\bin\
+   llama-vulkan
+   whisper-cuda
+```
+
+Noen CUDA-variant for språkmodellen finnes ikke, heller ikke på NVIDIA-maskiner.
+
+De to komponentene er selvstendige prosesser på hver sin port — talegjenkjenningen på 8178, språkmodellen på 8221. Den første gjør lyd om til tekst, den andre skriver om teksten etterpå. Bytte av Whisper-modell berører bare det første leddet, og forkorter derfor ikke ventetiden.
+
+At forsinkelsen forveksles med treg talegjenkjenning, følger av at den inntreffer etter at tasten slippes, nøyaktig der transkriberingen forventes å skje. Programmet viser ingen egen indikator for opprydningssteget.
+
 To alternativer:
 
 * Slå funksjonen av under Settings → AI Models → «Enable text cleanup». NB-Whisper leverer velformet norsk tekst uten etterbehandling.
@@ -84,6 +102,30 @@ Settings → Speech-to-Text har separate faner for «Dictation» og «Note Recor
 Settings → Preferences → Notifications → «App updates» bør slås av. En offisiell oppdatering overskriver det lokale bygget, og NB-modellene forsvinner fra modellisten.
 
 ## Feilsøking
+
+Programmet oppgir ikke i grensesnittet hvilken modell som faktisk er lastet, eller om den ligger på skjermkortet. Tre kommandoer gir svaret.
+
+Modellen talegjenkjenningen kjører med, sammen med hele kommandolinjen:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name LIKE 'whisper-server%'" | ForEach-Object { $_.CommandLine }
+```
+
+Ledig minne på skjermkortet, som avgjør om modellen får plass:
+
+```powershell
+nvidia-smi --query-gpu=memory.total,memory.used,memory.free --format=csv
+```
+
+Er `llama-server` oppe, holder den 2–3 GB av dette:
+
+```powershell
+Get-Process llama-server-vulkan
+```
+
+Detaljert logg, med oppstartstider og utdata fra whisper-server, skrives til `%APPDATA%\open-whispr\logs\` når feilsøkingslogg er slått på under Settings. Loggen oppgir `startupTimeMs` for begge serverne og gjengir modellinnlastingen linje for linje, inkludert hvor mye som ble lagt på kortet.
+
+Modellfilene ligger i `%USERPROFILE%\.cache\openwhispr\whisper-models\`. Mangler en fil der, melder programmet at modellen ikke er lastet ned, selv om den er valgt i innstillingene.
 
 To forhold ser ut som feil, men er det ikke:
 
@@ -109,7 +151,7 @@ Five points determine whether the result is usable:
 
 1. Do not sign in to a self-built copy. Without an API URL, `policyRules.ts` fails closed and blocks local transcription entirely. Settings → Profile → Sign Out.
 2. Budget your VRAM. Transcription and the cleanup model share one GPU. On an 8 GB card, the quantised model (1.6 GB) alongside Llama 3.2 3B (3.1 GB) and a browser will not fit, and transcription falls back to the CPU silently.
-3. The cleanup model governs latency. `llama-server` takes 15.6 seconds to start and shuts down after five idle minutes. Disable it, or choose a model around 1 GB.
+3. The cleanup model governs latency. `llama-server` takes 15.6 seconds to start and shuts down after five idle minutes to release VRAM. Most of that startup is Vulkan pipeline compilation: transcription loads a 3.1 GB model in 9.7 seconds on its CUDA build, while the cleanup model needs 15.6 seconds for 2.0 GB on Vulkan. Only a Vulkan build of `llama-server` ships with the application, so this cannot be configured away. The two run as separate processes on ports 8178 and 8221, which is why changing the Whisper model does not shorten the wait. Disable cleanup, or choose a model around 1 GB.
 4. Note Recording keeps a model setting of its own, separate from dictation.
 5. Disable automatic updates, or an official release will overwrite the local build.
 
