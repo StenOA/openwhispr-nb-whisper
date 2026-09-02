@@ -8,6 +8,8 @@ Bokmål og nynorsk ligger i samme modellfil. Det trengs ingen egen nynorskmodell
 
 Endringen er 28 linjer fordelt på tre filer i modell- og språkregisteret. Ingen annen del av programmet er berørt.
 
+**Skal du bare sette det opp?** Se [Kom i gang](INSTALLASJON.md) — installasjon og innstillinger, steg for steg. Resten av dette dokumentet er bakgrunnen: målinger, årsaker og feller.
+
 ## Konklusjonen først
 
 Det korte svaret, for den som ikke vil lese hele veien:
