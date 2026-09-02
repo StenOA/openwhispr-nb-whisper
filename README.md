@@ -8,6 +8,29 @@ Bokmål og nynorsk ligger i samme modellfil. Det trengs ingen egen nynorskmodell
 
 Endringen er 28 linjer fordelt på tre filer i modell- og språkregisteret. Ingen annen del av programmet er berørt.
 
+## Konklusjonen først
+
+Det korte svaret, for den som ikke vil lese hele veien:
+
+> **Bruk NB-Whisper Large kvantisert (1,08 GB), og slå av tekstoppryddingen.**
+> Da kommer teksten i det øyeblikket du slipper tasten, og ingen språkmodell kan finne på å bytte ord underveis.
+
+Oppsettet ble målt fram til over en kveld. Her er hva som ble prøvd, og hva hvert forsøk lærte:
+
+| Forsøk | Resultat |
+|---|---|
+| Byttet til stadig mindre Whisper-modeller, ned til 141 MB | Ingen bedring. Flaskehalsen lå ikke i talegjenkjenningen. |
+| Fant at opprydningsmodellen brukte 15,6 s på å starte, og stengte seg selv hvert femte minutt | Forklarte hele ventetiden. |
+| Flyttet oppryddingen til Ollama, som kjører CUDA og kan holde modellen lastet | 15,6 s → under ett sekund. 3,9 GB VRAM frigjort. |
+| Vurderte NB-Whisper full presisjon (3,1 GB) i stedet for kvantisert | Droppet. Marginal gevinst, og ikke plass ved siden av noe annet. |
+| Testet kvaliteten på oppryddingen med Gemma 3 1B | Modellen byttet ut ord med andre ekte norske ord. Slått av. |
+
+Sluttresultatet er enklere enn veien dit: talegjenkjenning alene, ingen etterbehandling, **1,5–2 sekunder**.
+
+Vil du likevel ha opprydding — for engelsk, eller for lengre dikteringer der tegnsetting betyr mer — ligger oppskriften med Ollama lenger nede. Den fungerer godt teknisk; det var kvaliteten på en modell med én milliard parametere som ikke holdt.
+
+Detaljene, tallene og fellene står i avsnittene under.
+
 ## Modellene
 
 Nasjonalbiblioteket publiserer modellene åpent på Hugging Face, i repoet [NbAiLab/nb-whisper-large](https://huggingface.co/NbAiLab/nb-whisper-large). Patchen legger inn disse to:
