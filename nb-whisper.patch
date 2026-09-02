@@ -1,0 +1,61 @@
+diff --git a/src/config/languageRegistry.json b/src/config/languageRegistry.json
+index c8bdd11e..230034c1 100644
+--- a/src/config/languageRegistry.json
++++ b/src/config/languageRegistry.json
+@@ -364,6 +364,15 @@
+       "assemblyai": false,
+       "instruction": "LANGUAGE CONTEXT: The user's preferred language is Norwegian. The transcribed text will be in Norwegian. You MUST write your entire output in Norwegian while maintaining proper Norwegian grammar, spelling, and punctuation. If the user naturally uses English words or technical terms, preserve those as-is."
+     },
++    {
++      "code": "nn",
++      "label": "Norwegian Nynorsk",
++      "flag": "🇳🇴",
++      "whisper": true,
++      "parakeet": false,
++      "assemblyai": false,
++      "instruction": "LANGUAGE CONTEXT: The user's preferred language is Norwegian Nynorsk. The transcribed text will be in Nynorsk. You MUST write your entire output in Nynorsk, never Bokmål, maintaining proper Nynorsk grammar, spelling, and punctuation. If the user naturally uses English words or technical terms, preserve those as-is."
++    },
+     {
+       "code": "fa",
+       "label": "Persian",
+diff --git a/src/models/ModelRegistry.ts b/src/models/ModelRegistry.ts
+index f24bb707..0dd89f88 100644
+--- a/src/models/ModelRegistry.ts
++++ b/src/models/ModelRegistry.ts
+@@ -82,6 +82,7 @@ export interface WhisperModelInfo {
+   descriptionKey?: string;
+   size: string;
+   sizeMb: number;
++  expectedSizeBytes?: number;
+   fileName: string;
+   downloadUrl: string;
+   recommended?: boolean;
+diff --git a/src/models/modelRegistryData.json b/src/models/modelRegistryData.json
+index 5c18c4f3..9e369256 100644
+--- a/src/models/modelRegistryData.json
++++ b/src/models/modelRegistryData.json
+@@ -198,6 +198,24 @@
+       "fileName": "ggml-large-v3-turbo.bin",
+       "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
+       "descriptionKey": "models.descriptions.whisper.turbo"
++    },
++    "nb-large": {
++      "name": "NB-Whisper Large (norsk, kvantisert)",
++      "description": "Nasjonalbibliotekets modell — bokmål og nynorsk. Raskere, marginalt lavere presisjon.",
++      "size": "1.08GB",
++      "sizeMb": 1031,
++      "expectedSizeBytes": 1081140203,
++      "fileName": "ggml-nb-large-q5_0.bin",
++      "downloadUrl": "https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model-q5_0.bin"
++    },
++    "nb-large-full": {
++      "name": "NB-Whisper Large (norsk, full presisjon)",
++      "description": "Nasjonalbibliotekets modell — bokmål og nynorsk. Høyest mulig nøyaktighet, tregere.",
++      "size": "3.1GB",
++      "sizeMb": 2951,
++      "expectedSizeBytes": 3095033483,
++      "fileName": "ggml-nb-large-full.bin",
++      "downloadUrl": "https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model.bin"
+     }
+   },
+   "transcriptionProviders": [
