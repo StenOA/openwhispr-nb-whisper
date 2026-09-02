@@ -88,10 +88,33 @@ De to komponentene er selvstendige prosesser på hver sin port — talegjenkjenn
 
 At forsinkelsen forveksles med treg talegjenkjenning, følger av at den inntreffer etter at tasten slippes, nøyaktig der transkriberingen forventes å skje. Programmet viser ingen egen indikator for opprydningssteget.
 
-To alternativer:
+Tre alternativer:
 
 * Slå funksjonen av under Settings → AI Models → «Enable text cleanup». NB-Whisper leverer velformet norsk tekst uten etterbehandling.
-* Velg en mindre modell. Gemma 3 1B (0,81 GB) dekker over 140 språk, norsk inkludert. Llama 3.2 oppgir offisiell støtte for åtte språk, og norsk er ikke blant dem. Qwen3-familien kan la resonneringstekst følge med i utdataene.
+* Velg en mindre modell. Gemma 3 1B (0,81 GB) dekker over 140 språk, norsk inkludert. Llama 3.2 oppgir offisiell støtte for åtte språk, og norsk er ikke blant dem. Qwen3-familien kan la resonneringstekst følge med i utdataene. Mindre modell forkorter to av de fire oppstartsleddene, men ikke shaderkompileringen.
+* Sett opprydningen til en ekstern server, som beskrevet nedenfor. Det er den eneste løsningen som fjerner ventetiden helt.
+
+### Ekstern språkmodell som fjerner oppstartstiden
+
+Programmet kan bruke en hvilken som helst OpenAI-kompatibel server til opprydningen, i stedet for sin egen innebygde. `providerConnectionTest.js` navngir Ollama, LM Studio og vLLM, og innstillingen `remoteReasoningType` tar verdien `openai-compatible`.
+
+Dette løser begge problemene på én gang. Ollama bruker CUDA på NVIDIA-kort, ikke Vulkan, slik at shaderkompileringen faller bort. Viktigere er `OLLAMA_KEEP_ALIVE`: settes den til `-1`, blir modellen liggende på kortet i stedet for å lastes ut. Da er det ingen oppstart å betale for i det hele tatt. Femminutters-nedstengingen i den innebygde serveren er en fast verdi i kildekoden og kan ikke settes opp.
+
+Alt kjører fortsatt lokalt. Ingen tekst forlater maskinen.
+
+Oppsett på Windows:
+
+```powershell
+winget install Ollama.Ollama
+ollama pull gemma3:1b
+setx OLLAMA_KEEP_ALIVE -1
+```
+
+I programmet velges deretter egendefinert leverandør under Settings → AI Models, med adressen `http://127.0.0.1:11434/v1`.
+
+Kostnaden er en bakgrunnstjeneste som holder på minnet permanent. En modell på 1 GB ved siden av NB-Whispers 1,6 GB legger beslag på 2,6 GB av et kort på 8 GB, hvilket lar seg forsvare. En større modell gjør det ikke.
+
+Å bytte ut `llama-server-vulkan.exe` med et CUDA-bygg fra llama.cpp er teknisk mulig, siden kommandolinjen er den samme, men frarådes. Filen blir overskrevet ved oppdatering eller reparasjon av programmet, og CUDA-bibliotekene må legges ved manuelt.
 
 ### Notatopptak har eget modellvalg
 
@@ -151,7 +174,7 @@ Five points determine whether the result is usable:
 
 1. Do not sign in to a self-built copy. Without an API URL, `policyRules.ts` fails closed and blocks local transcription entirely. Settings → Profile → Sign Out.
 2. Budget your VRAM. Transcription and the cleanup model share one GPU. On an 8 GB card, the quantised model (1.6 GB) alongside Llama 3.2 3B (3.1 GB) and a browser will not fit, and transcription falls back to the CPU silently.
-3. The cleanup model governs latency. `llama-server` takes 15.6 seconds to start and shuts down after five idle minutes to release VRAM. Most of that startup is Vulkan pipeline compilation: transcription loads a 3.1 GB model in 9.7 seconds on its CUDA build, while the cleanup model needs 15.6 seconds for 2.0 GB on Vulkan. Only a Vulkan build of `llama-server` ships with the application, so this cannot be configured away. The two run as separate processes on ports 8178 and 8221, which is why changing the Whisper model does not shorten the wait. Disable cleanup, or choose a model around 1 GB.
+3. The cleanup model governs latency. `llama-server` takes 15.6 seconds to start and shuts down after five idle minutes to release VRAM. Most of that startup is Vulkan pipeline compilation: transcription loads a 3.1 GB model in 9.7 seconds on its CUDA build, while the cleanup model needs 15.6 seconds for 2.0 GB on Vulkan. Only a Vulkan build of `llama-server` ships with the application, so this cannot be configured away. The two run as separate processes on ports 8178 and 8221, which is why changing the Whisper model does not shorten the wait. Disable cleanup, choose a model around 1 GB, or point cleanup at an external OpenAI-compatible server — Ollama with `OLLAMA_KEEP_ALIVE=-1` uses CUDA and keeps the model resident, removing the startup cost entirely while staying local.
 4. Note Recording keeps a model setting of its own, separate from dictation.
 5. Disable automatic updates, or an official release will overwrite the local build.
 
