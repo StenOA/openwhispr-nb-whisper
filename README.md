@@ -27,7 +27,9 @@ Oppsettet ble målt fram til over en kveld. Her er hva som ble prøvd, og hva hv
 
 Sluttresultatet er enklere enn veien dit: talegjenkjenning alene, ingen etterbehandling, **1,5–2 sekunder**.
 
-Vil du likevel ha opprydding — for engelsk, eller for lengre dikteringer der tegnsetting betyr mer — ligger oppskriften med Ollama lenger nede. Den fungerer godt teknisk; det var kvaliteten på en modell med én milliard parametere som ikke holdt.
+Oppskriften for å kjøre opprydding mot Ollama ligger likevel lenger nede, for den som vil prøve. Selve oppsettet er målt og fungerer: 765 ms svartid, modellen liggende på skjermkortet. Det som ikke holdt, var kvaliteten på en modell med én milliard parametere.
+
+Om en større modell unngår problemet, vet vi ikke — det er ikke testet her, og et kort på 8 GB har uansett ikke minne til den ved siden av talegjenkjenningen.
 
 Detaljene, tallene og fellene står i avsnittene under.
 
@@ -198,7 +200,7 @@ Gemma 3 1B skrev om ord den ikke hadde grunnlag for å endre. I én diktering bl
 
 Opprydningen ble derfor slått av for diktering. NB-Whisper leverer velformet norsk på egen hånd, og feilene den gjør er synlige feil. For tekst som skal publiseres, er det en bedre avveining enn en liten språkmodell som retter tegnsetting og samtidig gjetter på ord.
 
-Konklusjonen gjelder en modell på 1 milliard parametere. En større modell gjetter mindre, men krever minne som et kort på 8 GB ikke har til overs ved siden av talegjenkjenningen.
+Konklusjonen gjelder en modell på 1 milliard parametere, og den bygger på observasjon i bruk, ikke på en systematisk test. Om en større modell ville unngått ordbyttene, er ikke prøvd — et kort på 8 GB har uansett ikke minne til en slik modell ved siden av talegjenkjenningen.
 
 ## Feilsøking
 
