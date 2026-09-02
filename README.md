@@ -1,35 +1,29 @@
 # NB-Whisper for OpenWhispr
 
-En liten patch som legger Nasjonalbibliotekets **NB-Whisper**-modeller inn i
-[OpenWhispr](https://github.com/OpenWhispr/openwhispr) 1.9.2, og legger til **nynorsk**
-som eget språkvalg.
+Norske tale-til-tekst-modeller fra Nasjonalbiblioteket i [OpenWhispr](https://github.com/OpenWhispr/openwhispr) 1.9.2, med nynorsk som eget språkvalg.
 
-Den offisielle appen har bare `Norwegian`, som i praksis gir bokmål. NB-Whisper er trent på
-norsk tale av Nasjonalbiblioteket og gir merkbart bedre resultat på norsk enn de generelle
-Whisper-modellene — særlig på navn, stedsnavn og fagord. Den håndterer både bokmål og nynorsk.
+OpenWhispr leveres med Whisper-modellene fra OpenAI. De forstår norsk, men er trent på engelsk i hovedsak, og treffer ujevnt på navn, stedsnavn og fagord. NB-Whisper er trent på norsk tale av Nasjonalbiblioteket og gir vesentlig bedre resultat.
 
-28 linjer i tre filer. Ingenting annet er endret.
+Bokmål og nynorsk ligger i samme modellfil. Det trengs ingen egen nynorskmodell; målformen styres av språkvalget i programmet, og patchen legger inn nynorsk som eget valg ved siden av «Norwegian». Den offisielle appen har bare det siste, som i praksis gir bokmål.
 
----
+Endringen er 28 linjer fordelt på tre filer i modell- og språkregisteret. Ingen annen del av programmet er berørt.
 
 ## Modellene
 
-Begge filene ligger åpent ute hos Nasjonalbiblioteket på Hugging Face, i repoet
-[**NbAiLab/nb-whisper-large**](https://huggingface.co/NbAiLab/nb-whisper-large):
+Nasjonalbiblioteket publiserer modellene åpent på Hugging Face, i repoet [NbAiLab/nb-whisper-large](https://huggingface.co/NbAiLab/nb-whisper-large). Patchen legger inn disse to:
 
-| Modell i appen | Fil hos Nasjonalbiblioteket | Størrelse |
-|---|---|---|
-| NB-Whisper Large (norsk, kvantisert) | [`ggml-model-q5_0.bin`](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model-q5_0.bin) | 1,08 GB |
-| NB-Whisper Large (norsk, full presisjon) | [`ggml-model.bin`](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model.bin) | 3,1 GB |
+| Modell i appen | Kildefil | Størrelse | VRAM i drift |
+|---|---|---|---|
+| NB-Whisper Large (norsk, kvantisert) | [ggml-model-q5_0.bin](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model-q5_0.bin) | 1,08 GB | ca. 1,6 GB |
+| NB-Whisper Large (norsk, full presisjon) | [ggml-model.bin](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model.bin) | 3,1 GB | ca. 3,6 GB |
 
-Appen laster dem ned automatisk første gang du velger dem, og lagrer dem lokalt som
-`ggml-nb-large-q5_0.bin` og `ggml-nb-large-full.bin`. Se modellkortet for lisens og vilkår
-for modellvektene.
+Appen laster ned filen første gang modellen velges, og lagrer den lokalt som `ggml-nb-large-q5_0.bin` eller `ggml-nb-large-full.bin`.
 
-**Bruk den kvantiserte til daglig.** Kvalitetsforskjellen er marginal, og full presisjon
-trenger ~3,6 GB VRAM mot ~1,6 GB — se VRAM-avsnittet nedenfor.
+Den kvantiserte modellen anbefales til vanlig bruk. Kvalitetsforskjellen er marginal, mens minnebehovet er under halvparten. Se avsnittet om minne nedenfor.
 
-## Ta patchen i bruk
+Vilkårene for modellvektene framgår av modellkortet hos Nasjonalbiblioteket.
+
+## Installasjon
 
 ```bash
 git clone https://github.com/OpenWhispr/openwhispr.git
@@ -39,137 +33,90 @@ npm install
 npm run download:whisper-cpp
 ```
 
-`npm run dev` henter **ikke** whisper.cpp av seg selv — den kommandoen må kjøres for seg.
+Kommandoen `npm run download:whisper-cpp` må kjøres separat. `npm run dev` henter ikke whisper.cpp av seg selv.
 
-Bygg på Windows:
+Bygging på Windows:
 
 ```bash
 npx electron-builder --config electron-builder.unsigned-win.json
 ```
 
-Bruk den usignerte varianten. Standardoppskriften prøver å signere med OpenWhisprs eget
-Azure-sertifikat, som du ikke har tilgang til.
+Den usignerte konfigurasjonen er nødvendig. Standardoppskriften signerer med OpenWhisprs eget Azure-sertifikat, som ikke er tilgjengelig utenfor prosjektet. Windows vil melde «Windows beskyttet PC-en din» ved installasjon av et usignert bygg; velg «Mer info» og deretter «Kjør likevel».
 
----
+## Oppsett
 
-## Hva som skal til for at det faktisk virker
+Fem punkter avgjør om resultatet blir brukbart. Alle er verifisert på et bygg av 1.9.2.
 
-Dette er fellene som kostet mest tid. Alle er reelle, alle er målt.
+### Ikke logg inn
 
-### 1. Ikke logg inn
+Et selvbygget OpenWhispr har ingen `VITE_OPENWHISPR_API_URL`. Ved innlogging forsøker programmet å hente en «workspace policy» fra et API det ikke når. `policyRules.ts` er skrevet *fail closed*, og avviser da samtlige funksjoner, også lokal transkribering som ikke er avhengig av nett.
 
-Et selvbygget OpenWhispr har ingen `VITE_OPENWHISPR_API_URL`. Logger du inn, spør appen et
-API den ikke når om «workspace policy». `policyRules.ts` er *fail closed* og nekter da alt —
-**også lokal transkribering**, som ikke trenger nettet i det hele tatt.
+Symptomene er meldingen «No setup option is available — contact your administrator» under førstegangsoppsettet, eller at NB-modellen ikke lar seg velge. Løsningen er Settings → Profile → Sign Out.
 
-Symptom: «No setup option is available — contact your administrator» i onboardingen, eller at
-NB-modellen ikke lar seg velge.
+### Minnebudsjettet på skjermkortet
 
-Fiks: **Settings → Profile → Sign Out.**
+Talegjenkjenningen og språkmodellen som rydder teksten deler samme skjermkort. Målinger fra et kort med 8 GB (RTX 2070):
 
-### 2. Regn på VRAM-en
-
-Whisper og språkmodellen for tekstopprydding deler samme skjermkort. Måling på et
-**RTX 2070 med 8 GB**:
-
-| Det som ligger på kortet | VRAM |
+| Komponent | VRAM |
 |---|---|
-| NB-Whisper q5_0 (vekter + KV-cache + compute-buffere) | ~1,6 GB |
-| NB-Whisper full presisjon | ~3,6 GB |
-| Llama 3.2 3B (standard opprydningsmodell) | 3,1 GB |
-| Nettleser, Electron-apper, skrivebord | 2–3 GB |
+| NB-Whisper kvantisert, inkl. KV-cache og buffere | 1,6 GB |
+| NB-Whisper full presisjon | 3,6 GB |
+| Llama 3.2 3B, standard opprydningsmodell | 3,1 GB |
+| Nettleser og øvrige Electron-programmer | 2–3 GB |
 
-Får ikke whisper plass på GPU-en, faller den ned på CPU. En large-modell på CPU tar
-**mange sekunder** per ytring i stedet for under to.
+Når talegjenkjenningen ikke får plass på kortet, faller den tilbake til prosessoren uten å melde fra. En large-modell på CPU bruker flere sekunder per ytring. Med den kvantiserte modellen på kortet ligger svartiden på 1,5–2 sekunder fra tasten slippes til teksten står i vinduet.
 
-Med q5_0 på GPU: **1,5–2 sekunder** fra du slipper tasten til teksten står der.
+### Opprydningsmodellen bestemmer ventetiden
 
-### 3. Tekstoppryddingen er den store tidstyven
+`llama-server` bruker 15,6 sekunder på å starte, og avslutter seg selv etter fem minutter uten bruk for å frigjøre minne på kortet. Hver diktering som følger etter en lengre pause betaler oppstarten på nytt. Dette er uavhengig av hvilken Whisper-modell som er valgt, og forveksles lett med treg talegjenkjenning.
 
-`llama-server` starter på **15,6 sekunder** og **stenger seg selv etter fem minutter** uten
-bruk for å frigjøre VRAM (`IDLE_TIMEOUT_MS` i `src/helpers/llamaServer.js`). Dikterer du,
-venter seks minutter og dikterer igjen, betaler du hele oppstarten på nytt.
+To alternativer:
 
-To utveier:
+* Slå funksjonen av under Settings → AI Models → «Enable text cleanup». NB-Whisper leverer velformet norsk tekst uten etterbehandling.
+* Velg en mindre modell. Gemma 3 1B (0,81 GB) dekker over 140 språk, norsk inkludert. Llama 3.2 oppgir offisiell støtte for åtte språk, og norsk er ikke blant dem. Qwen3-familien kan la resonneringstekst følge med i utdataene.
 
-- **Slå det av:** Settings → AI Models → «Enable text cleanup». Whisper alene gir god nok
-  norsk tekst.
-- **Bruk en liten modell:** Gemma 3 1B (0,81 GB) er trent på 140+ språk og håndterer norsk.
-  Llama 3.2 støtter offisielt bare åtte språk, og norsk er ikke ett av dem. Qwen3-familien
-  kan la resonneringen lekke inn i teksten.
+### Notatopptak har eget modellvalg
 
-### 4. Notatopptak har sitt eget modellvalg
+Settings → Speech-to-Text har separate faner for «Dictation» og «Note Recording», med hvert sitt modellvalg. Notatopptak følger ikke med når dikteringsmodellen endres, og melder `Whisper model "turbo" not downloaded` dersom den peker på en modell som ikke er lastet ned. Begge faner bør settes til NB-modellen.
 
-**Settings → Speech-to-Text → fanen «Note Recording»** velger modell uavhengig av dikteringen.
-Bytter du dikteringsmodell, følger ikke denne med — og da kommer
-`Whisper model "turbo" not downloaded` hver gang funksjonen brukes.
+### Slå av automatiske oppdateringer
 
-Sett begge fanene til NB-modellen.
+Settings → Preferences → Notifications → «App updates» bør slås av. En offisiell oppdatering overskriver det lokale bygget, og NB-modellene forsvinner fra modellisten.
 
-### 5. Slå av automatiske oppdateringer
+## Feilsøking
 
-**Settings → Preferences → Notifications → «App updates»** av. En offisiell oppdatering
-overskriver bygget ditt, og NB-modellene forsvinner fra lista.
+To forhold ser ut som feil, men er det ikke:
 
----
+`--language auto` i kommandolinjen til whisper-server er ikke til hinder for norsk. Språket sendes som skjemafelt i hver enkelt forespørsel, og overstyrer standardverdien. Språket settes under Preferences → Transcription language.
 
-## Ting som *ikke* er problemet
-
-Verdt å vite, så du ikke jakter på feil ting:
-
-- **`--language auto` på kommandolinja til whisper-server.** Appen sender språket som
-  skjemafelt i hver enkelt forespørsel (`src/helpers/whisperServer.js`), og det overstyrer
-  standardverdien. Språket settes i Preferences → Transcription language.
-- **En modellfil som er litt mindre enn oppgitt.** `validateFileSize` har 10 % slingringsmonn.
-
----
+En modellfil som er noe mindre enn oppgitt størrelse blir ikke avvist. `validateFileSize` opererer med ti prosent slingringsmonn.
 
 ## Avinstallering
 
-Avinstallering sletter `.cache/openwhispr/models` (språkmodellene), men **ikke**
-`.cache/openwhispr/whisper-models`. Whisper-modellene blir liggende, og må slettes for hånd
-om du vil ha plassen tilbake.
+Avinstallasjon fjerner `.cache/openwhispr/models`, men lar `.cache/openwhispr/whisper-models` stå. Whisper-modellene må slettes manuelt dersom diskplassen skal frigjøres.
 
 ## macOS
 
-Windows kan ikke bygge macOS-pakker. Trenger du nynorsk på Mac, kan
-[VoiceInk](https://github.com/Beingpax/VoiceInk) importere den samme `.bin`-fila.
-
----
+macOS-pakker kan ikke bygges fra Windows. [VoiceInk](https://github.com/Beingpax/VoiceInk) kan importere den samme `.bin`-filen og er et alternativ for norskspråklige Mac-brukere.
 
 ## In English
 
-This patch adds the Norwegian National Library's **NB-Whisper** models to OpenWhispr 1.9.2,
-plus Nynorsk as a separate language option. 28 lines across three files.
+This patch adds the Norwegian National Library's NB-Whisper models to OpenWhispr 1.9.2, along with Nynorsk as a separate language option. The change is 28 lines across three files in the model and language registries.
 
-The two model files are published openly by the National Library at
-[NbAiLab/nb-whisper-large](https://huggingface.co/NbAiLab/nb-whisper-large):
-[`ggml-model-q5_0.bin`](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model-q5_0.bin)
-(1.08 GB) and
-[`ggml-model.bin`](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model.bin)
-(3.1 GB). They are trained on Norwegian speech and clearly outperform the general Whisper
-models on Norwegian, and they handle both written standards, Bokmål and Nynorsk.
+The National Library publishes both model files openly at [NbAiLab/nb-whisper-large](https://huggingface.co/NbAiLab/nb-whisper-large): [ggml-model-q5_0.bin](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model-q5_0.bin) (1.08 GB) and [ggml-model.bin](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model.bin) (3.1 GB). Both are trained on Norwegian speech and handle Bokmål and Nynorsk alike.
 
-The practical points:
+Five points determine whether the result is usable:
 
-1. **Do not sign in** to a self-built copy — `policyRules.ts` fails closed without an API URL
-   and blocks local transcription entirely. Settings → Profile → Sign Out.
-2. **Watch your VRAM.** Whisper and the cleanup LLM share one GPU. On an 8 GB card, the
-   quantised model (~1.6 GB) plus Llama 3.2 3B (3.1 GB) plus a browser will not fit, and
-   whisper silently falls back to CPU — many seconds instead of under two.
-3. **The cleanup model is the latency.** `llama-server` takes 15.6 s to start and shuts itself
-   down after five idle minutes. Turn cleanup off, or pick a ~1 GB model.
-4. **Note Recording has its own model setting**, separate from dictation.
-5. **Turn off app updates**, or an official release will overwrite your build.
+1. Do not sign in to a self-built copy. Without an API URL, `policyRules.ts` fails closed and blocks local transcription entirely. Settings → Profile → Sign Out.
+2. Budget your VRAM. Transcription and the cleanup model share one GPU. On an 8 GB card, the quantised model (1.6 GB) alongside Llama 3.2 3B (3.1 GB) and a browser will not fit, and transcription falls back to the CPU silently.
+3. The cleanup model governs latency. `llama-server` takes 15.6 seconds to start and shuts down after five idle minutes. Disable it, or choose a model around 1 GB.
+4. Note Recording keeps a model setting of its own, separate from dictation.
+5. Disable automatic updates, or an official release will overwrite the local build.
 
----
+## Lisens
 
-## Lisens og kreditering
+Patchen er utgitt under MIT-lisensen.
 
-Patchen er MIT, som OpenWhispr selv.
+OpenWhispr er MIT-lisensiert, © 2024 OpenWhispr Team. NB-Whisper er utviklet av [Nasjonalbiblioteket](https://huggingface.co/NbAiLab); vilkårene for modellvektene framgår av modellkortet.
 
-OpenWhispr — MIT, © 2024 OpenWhispr Team.
-NB-Whisper — laget av [Nasjonalbiblioteket (NbAiLab)](https://huggingface.co/NbAiLab).
-Se modellkortet deres for vilkårene som gjelder modellvektene.
-
-Dette repoet er ikke tilknyttet verken OpenWhispr eller Nasjonalbiblioteket.
+Prosjektet er ikke tilknyttet OpenWhispr eller Nasjonalbiblioteket.
