@@ -116,6 +116,14 @@ Kostnaden er en bakgrunnstjeneste som holder på minnet permanent. En modell på
 
 Å bytte ut `llama-server-vulkan.exe` med et CUDA-bygg fra llama.cpp er teknisk mulig, siden kommandolinjen er den samme, men frarådes. Filen blir overskrevet ved oppdatering eller reparasjon av programmet, og CUDA-bibliotekene må legges ved manuelt.
 
+### Hver funksjon har sitt eget modellvalg
+
+Settings → Language Models har fem faner — Dictation Cleanup, Voice Assistant, Translation, Note Formatting og Chat — og **hver av dem velger leverandør, adresse og modell for seg**. Endrer du én, følger ikke de andre med.
+
+Dette er verdt å merke seg, for konsekvensen er ikke åpenbar: står bare én av fanene på «Local», startes den innebygde `llama-server` likevel, og den legger beslag på 3–4 GB av skjermkortet enten du bruker funksjonen eller ikke. Å sette Dictation Cleanup til noe annet er altså ikke nok. Fanene med avslått funksjon, som Translation, teller ikke med.
+
+Adressefeltet er også per fane. Bytter du en fane til «Self-Hosted», står feltet tomt med en tilfeldig eksempeladresse som grå plassholder, og modellista er tom til du har fylt inn adressen og trykt «Apply & Refresh».
+
 ### Notatopptak har eget modellvalg
 
 Settings → Speech-to-Text har separate faner for «Dictation» og «Note Recording», med hvert sitt modellvalg. Notatopptak følger ikke med når dikteringsmodellen endres, og melder `Whisper model "turbo" not downloaded` dersom den peker på en modell som ikke er lastet ned. Begge faner bør settes til NB-modellen.
@@ -123,6 +131,51 @@ Settings → Speech-to-Text har separate faner for «Dictation» og «Note Recor
 ### Slå av automatiske oppdateringer
 
 Settings → Preferences → Notifications → «App updates» bør slås av. En offisiell oppdatering overskriver det lokale bygget, og NB-modellene forsvinner fra modellisten.
+
+## Målinger
+
+Tallene nedenfor er målt på samme maskin — RTX 2070 med 8 GB, Ryzen med 16 tråder, 48 GB systemminne — i én økt, med NB-Whisper Large kvantisert som talegjenkjenning hele veien.
+
+### Utgangspunktet
+
+| Ledd | Tid |
+|---|---|
+| Talegjenkjenning, modellen på skjermkortet | 1,5–2 s |
+| Talegjenkjenning, modellen falt tilbake til prosessoren | flere sekunder per ytring |
+| Innebygd `llama-server` (Vulkan), oppstart | 15,6 s |
+| Innebygd `llama-server`, nedstenging etter inaktivitet | 5 min |
+
+Oppstarten på 15,6 sekunder ble betalt på nytt for hver diktering som fulgte en pause på over fem minutter, hvilket i praksis vil si annenhver gang. Til sammenligning laster talegjenkjenningen en større modell — 3,1 GB mot 2,0 — på 9,7 sekunder, fordi den kjører CUDA og ikke Vulkan.
+
+### Ekstern server i stedet
+
+Opprydningen ble flyttet til Ollama med Gemma 3 1B, kjørende på samme maskin med `OLLAMA_KEEP_ALIVE=-1`.
+
+| Ledd | Tid |
+|---|---|
+| Første kall, modellen lastes inn | 94 s |
+| Påfølgende kall, kort tekst | 246–362 ms |
+| Reell diktering, 730 tokens inn | 765 ms |
+
+Førstegangsinnlastingen på 94 sekunder skjedde mens skjermkortet var nesten fullt, og inntreffer bare én gang. Deretter blir modellen liggende, og oppstartskostnaden er borte for godt. `ollama ps` bekrefter `100% GPU` og `UNTIL: Forever`.
+
+Minnebildet før og etter, med talegjenkjenningen lastet i begge tilfeller:
+
+| | Før | Etter |
+|---|---|---|
+| Ledig VRAM | 512 MiB | 2143 MiB |
+| Innebygd `llama-server` | 3939 MB | avsluttet |
+| Opprydningsmodell på kortet | — | 877 MB |
+
+### Hvorfor opprydningen likevel ble slått av
+
+Med alt på plass fungerte kjeden, og svartiden var god. Kvaliteten var det ikke.
+
+Gemma 3 1B skrev om ord den ikke hadde grunnlag for å endre. I én diktering ble «hele kjeden virker» til «hele kilden virker». Feilen er vanskelig å oppdage, nettopp fordi resultatet er et ekte norsk ord som passer i setningen. Manglende tegnsetting ser man med én gang; et ombyttet ord gjør man ikke.
+
+Opprydningen ble derfor slått av for diktering. NB-Whisper leverer velformet norsk på egen hånd, og feilene den gjør er synlige feil. For tekst som skal publiseres, er det en bedre avveining enn en liten språkmodell som retter tegnsetting og samtidig gjetter på ord.
+
+Konklusjonen gjelder en modell på 1 milliard parametere. En større modell gjetter mindre, men krever minne som et kort på 8 GB ikke har til overs ved siden av talegjenkjenningen.
 
 ## Feilsøking
 
@@ -177,6 +230,19 @@ Five points determine whether the result is usable:
 3. The cleanup model governs latency. `llama-server` takes 15.6 seconds to start and shuts down after five idle minutes to release VRAM. Most of that startup is Vulkan pipeline compilation: transcription loads a 3.1 GB model in 9.7 seconds on its CUDA build, while the cleanup model needs 15.6 seconds for 2.0 GB on Vulkan. Only a Vulkan build of `llama-server` ships with the application, so this cannot be configured away. The two run as separate processes on ports 8178 and 8221, which is why changing the Whisper model does not shorten the wait. Disable cleanup, choose a model around 1 GB, or point cleanup at an external OpenAI-compatible server — Ollama with `OLLAMA_KEEP_ALIVE=-1` uses CUDA and keeps the model resident, removing the startup cost entirely while staying local.
 4. Note Recording keeps a model setting of its own, separate from dictation.
 5. Disable automatic updates, or an official release will overwrite the local build.
+
+Measured on an RTX 2070 (8 GB), transcribing with the quantised NB-Whisper throughout:
+
+| | Time |
+|---|---|
+| Transcription, model resident on the GPU | 1.5–2 s |
+| Bundled `llama-server` (Vulkan) cold start | 15.6 s |
+| Ollama + Gemma 3 1B, first call | 94 s |
+| Ollama + Gemma 3 1B, subsequent calls | 246–765 ms |
+
+Moving cleanup to Ollama with `OLLAMA_KEEP_ALIVE=-1` removed the recurring 15.6-second startup and freed 3.9 GB of VRAM. Note that every tab under Language Models — Dictation Cleanup, Voice Assistant, Translation, Note Formatting, Chat — carries its own provider, endpoint and model. A single tab left on "Local" starts the bundled server and claims the memory regardless of whether you use that feature.
+
+Cleanup was nevertheless switched off for dictation. Gemma 3 1B substituted plausible Norwegian words for ones that were never spoken — "kjeden" became "kilden" — and a substituted real word is far harder to catch when proofreading than a missing comma. NB-Whisper produces well-formed Norwegian on its own, and the errors it does make are visible ones.
 
 ## Lisens
 
