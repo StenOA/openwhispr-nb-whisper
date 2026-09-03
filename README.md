@@ -8,7 +8,11 @@ Bokmål og nynorsk ligger i samme modellfil. Det trengs ingen egen nynorskmodell
 
 Endringen er 28 linjer fordelt på tre filer i modell- og språkregisteret. Ingen annen del av programmet er berørt.
 
+**Forutsetninger.** Selve patchen er plattformuavhengig — det er ren JSON og TypeScript. Byggeoppskrifta og alle målinger i dette dokumentet gjelder derimot **Windows med et NVIDIA-kort**. Modellene kjører også på prosessoren, men da med flere sekunders ventetid per ytring i stedet for under to. macOS-pakker kan ikke bygges fra Windows; for Mac finnes et alternativ nederst i dokumentet.
+
 **Skal du bare sette det opp?** Se [Kom i gang](INSTALLASJON.md) — installasjon og innstillinger, steg for steg. Resten av dette dokumentet er bakgrunnen: målinger, årsaker og feller.
+
+*English readers: the notes below are in Norwegian, but there is a [summary in English](#in-english) at the end.*
 
 ## Konklusjonen først
 
@@ -17,7 +21,7 @@ Det korte svaret, for den som ikke vil lese hele veien:
 > **Bruk NB-Whisper Large kvantisert (1,08 GB), og slå av tekstoppryddingen.**
 > Da kommer teksten i det øyeblikket du slipper tasten, og ingen språkmodell kan finne på å bytte ord underveis.
 
-Oppsettet ble målt fram til over en kveld. Her er hva som ble prøvd, og hva hvert forsøk lærte:
+Konklusjonen bygger på målinger, ikke antakelser. Her er hva som ble prøvd, og hva hvert forsøk viste:
 
 | Forsøk | Resultat |
 |---|---|
@@ -31,7 +35,7 @@ Sluttresultatet er enklere enn veien dit: talegjenkjenning alene, ingen etterbeh
 
 Oppskriften for å kjøre opprydding mot Ollama ligger likevel lenger nede, for den som vil prøve. Selve oppsettet er målt og fungerer: 765 ms svartid, modellen liggende på skjermkortet. Det som ikke holdt, var kvaliteten på en modell med én milliard parametere.
 
-Om en større modell unngår problemet, vet vi ikke — det er ikke testet her, og et kort på 8 GB har uansett ikke minne til den ved siden av talegjenkjenningen.
+Om en større modell unngår problemet, er ikke undersøkt her. Et kort på 8 GB har uansett ikke minne til den ved siden av talegjenkjenningen.
 
 Detaljene, tallene og fellene står i avsnittene under.
 
@@ -161,7 +165,17 @@ Settings → Preferences → Notifications → «App updates» bør slås av. En
 
 ## Målinger
 
-Tallene nedenfor er målt på samme maskin — RTX 2070 med 8 GB, Ryzen med 16 tråder, 48 GB systemminne — i én økt, med NB-Whisper Large kvantisert som talegjenkjenning hele veien.
+Alle tall nedenfor er målt på den samme maskinen, med NB-Whisper Large kvantisert som talegjenkjenning hele veien:
+
+| | |
+|---|---|
+| Prosessor | Intel Core i9-9900K, 8 kjerner / 16 tråder, 3,6 GHz |
+| Hovedkort | Gigabyte Z390 DESIGNARE |
+| Minne | 48 GB DDR4, 2133 MHz |
+| Skjermkort | NVIDIA GeForce RTX 2070, 8 GB, driver 595.79 |
+| System | Windows 11 Pro (build 26200) |
+
+Skjermkortets 8 GB er den avgjørende begrensningen i alt som følger. På et kort med mer minne faller flere av avveiningene annerledes ut.
 
 ### Utgangspunktet
 
