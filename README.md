@@ -10,6 +10,8 @@ Endringen er 28 linjer fordelt på tre filer i modell- og språkregisteret. Inge
 
 **Forutsetninger.** Selve patchen er plattformuavhengig — det er ren JSON og TypeScript. Byggeoppskrifta og alle målinger i dette dokumentet gjelder derimot **Windows med et NVIDIA-kort**. Modellene kjører også på prosessoren, men da med flere sekunders ventetid per ytring i stedet for under to. macOS-pakker kan ikke bygges fra Windows; for Mac finnes et alternativ nederst i dokumentet.
 
+Tallene er målt på én bestemt maskin — en Intel i9-9900K med RTX 2070 og 8 GB skjermminne. [Full spesifikasjon står under Målinger](#målinger). Skjermkortets 8 GB er den avgjørende begrensningen i det meste av det som følger.
+
 **Skal du bare sette det opp?** Se [Kom i gang](INSTALLASJON.md) — installasjon og innstillinger, steg for steg. Resten av dette dokumentet er bakgrunnen: målinger, årsaker og feller.
 
 *English readers: the notes below are in Norwegian, but there is a [summary in English](#in-english) at the end.*
