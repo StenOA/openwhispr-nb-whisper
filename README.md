@@ -8,7 +8,7 @@ Bokmål og nynorsk ligger i samme modellfil. Det trengs ingen egen nynorskmodell
 
 Endringen er 28 linjer fordelt på tre filer i modell- og språkregisteret. Ingen annen del av programmet er berørt.
 
-**Forutsetninger.** Selve patchen er plattformuavhengig — det er ren JSON og TypeScript. Byggeoppskrifta og alle målinger i dette dokumentet gjelder derimot **Windows med et NVIDIA-kort**. Modellene kjører også på prosessoren, men da med flere sekunders ventetid per ytring i stedet for under to. macOS-pakker kan ikke bygges fra Windows; for Mac finnes et alternativ nederst i dokumentet.
+**Forutsetninger.** Selve patchen er plattformuavhengig — det er ren JSON og TypeScript. Byggeoppskrifta og alle målinger i dette dokumentet gjelder derimot **Windows med et NVIDIA-kort**. Modellene kjører også på prosessoren, men da med flere sekunders ventetid per ytring i stedet for under to.
 
 Tallene er målt på én bestemt maskin — en Intel i9-9900K med RTX 2070 og 8 GB skjermminne. [Full spesifikasjon står under Målinger](#målinger). Skjermkortets 8 GB er den avgjørende begrensningen i det meste av det som følger.
 
@@ -203,7 +203,25 @@ Målt i to omganger, med den kvantiserte NB-modellen på skjermkortet.
 
 Prosesseringen ligger altså på **5–8 % av tiden det tok å si det**, og andelen synker med lengden fordi den faste oppstartskostnaden fordeles på mer lyd. Femten minutter sammenhengende tale ble transkribert komplett på under ett minutt.
 
-For vanlig diktering betyr det at modellen er ferdig på under ett sekund. Den observerte ventetiden på 1,5–2 sekunder er altså i hovedsak programmets eget arbeid med å ta imot opptaket og lime inn teksten, ikke talegjenkjenningen.
+**Målt inne i programmet.** Med feilsøkingsloggen påslått rapporterer programmet selv hvert ledd. For vanlig diktering:
+
+| Lyd | Transkribering | Full rundtur |
+|---|---|---|
+| 3,0 s | 495 ms | 497 ms |
+| 3,3 s | 607 ms | 609 ms |
+
+Konverteringen med ffmpeg tok 67 ms for disse. Selve talegjenkjenningen er altså ferdig godt under ett sekund; den ventetiden man opplever i tillegg, går med til å avslutte opptaket og lime inn teksten.
+
+For opplasting av femten minutter så tidslinjen slik ut:
+
+```
+ffmpeg-konvertering av 28,8 MB      239 ms
+whisper-server, 901,8 sekunder lyd   54 370 ms
+```
+
+**Framdriftsindikatoren er misvisende ved opplasting.** Den fyller seg mens filen leses og konverteres — under et halvt sekund — og står deretter stille gjennom hele det virkelige arbeidet. whisper.cpp rapporterer ingen framdrift underveis, så programmet har ingenting å vise. De siste prosentene *er* jobben.
+
+**Opplastingsveien sender ikke med språkvalget.** Loggen viser `lang = auto` for opplastede filer, mens vanlig diktering kjører `lang = no`. Modellen må altså gjette språk på opplastet lyd, uansett hva som står under Transcription language. På norsk går det som regel bra, men det er unødvendig arbeid, og på korte opptak kan den bomme.
 
 **Treffsikkerhet er ikke målt her.** Det ble forsøkt mot fasitene i korpuset, men tallet blir misvisende: Stortingets transkripsjoner skriver tall som ord etter uttale — «innstilling hundre og énogsytti L tjueseksten tjuesytten» der modellen skriver «Innst. 171 L for 2016–2017». Samme innhold, men hvert siffer telles som feil. En reell måling krever normalisering av tall, forkortelser og egennavn, og det er ikke gjort. Tallene over gjelder derfor fart, ikke kvalitet.
 
@@ -283,10 +301,6 @@ En modellfil som er noe mindre enn oppgitt størrelse blir ikke avvist. `validat
 ## Avinstallering
 
 Avinstallasjon fjerner `.cache/openwhispr/models`, men lar `.cache/openwhispr/whisper-models` stå. Whisper-modellene må slettes manuelt dersom diskplassen skal frigjøres.
-
-## macOS
-
-macOS-pakker kan ikke bygges fra Windows. [VoiceInk](https://github.com/Beingpax/VoiceInk) kan importere den samme `.bin`-filen og er et alternativ for norskspråklige Mac-brukere.
 
 ## In English
 
