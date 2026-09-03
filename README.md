@@ -32,6 +32,7 @@ Konklusjonen bygger på målinger, ikke antakelser. Her er hva som ble prøvd, o
 | Flyttet oppryddingen til Ollama, som kjører CUDA og kan holde modellen lastet | 15,6 s → under ett sekund. 3,9 GB VRAM frigjort. |
 | Vurderte NB-Whisper full presisjon (3,1 GB) i stedet for kvantisert | Droppet. Marginal gevinst, og ikke plass ved siden av noe annet. |
 | Testet kvaliteten på oppryddingen med Gemma 3 1B | Modellen byttet ut ord med andre ekte norske ord. Slått av. |
+| Testet på nytt med Gemma 3 4B, fire ganger så stor | Endret 14,6 % av teksten og fant på et partinavn. Forkastet. |
 
 Sluttresultatet er enklere enn veien dit: talegjenkjenning alene, ingen etterbehandling, **1,5–2 sekunder**.
 
@@ -101,13 +102,32 @@ Når talegjenkjenningen ikke får plass på kortet, faller den tilbake til prose
 
 ### Opprydningsmodellen bestemmer ventetiden
 
-`llama-server` bruker 15,6 sekunder på å starte, og avslutter seg selv etter fem minutter uten bruk for å frigjøre minne på kortet. Hver diktering som følger etter en lengre pause betaler oppstarten på nytt. Dette er uavhengig av hvilken Whisper-modell som er valgt, og forveksles lett med treg talegjenkjenning.
+Slipper du dikteringstasten og venter et kvarts minutt på teksten, er den nærliggende antakelsen at talegjenkjenningen sliter. Den er allerede ferdig.
 
-Nedstengingen er tilsiktet, ikke en feil. En modell på 3 GB som blir liggende, opptar kortet døgnet rundt og fortrenger både nettleseren og talegjenkjenningen. Programmet gir derfor fra seg minnet og betaler oppstarten på nytt ved behov. Avveiningen passer et system som brukes i lange økter, men er dårlig tilpasset diktering, som består av korte økter med pauser mellom.
+```
+[tast slippes]
+   │
+   ├─  0,5 s   whisper-server transkriberer ferdig   (CUDA, port 8178)
+   │
+   └─ 15,6 s   llama-server starter opp fra dvale    (Vulkan, port 8221)
+                  └─ teksten dukker opp i vinduet
+```
 
-Oppstarten fordeler seg på fire ledd: lesing av modellfilen fra disk, overføring av vektene til kortet, kompilering av Vulkan-rutinene, og venting på at serveren svarer på helsesjekk. Det tredje leddet er det dyreste, og forklarer et ellers underlig forhold: talegjenkjenningen laster en modell på 3,1 GB på 9,7 sekunder, mens opprydningsmodellen bruker 15,6 sekunder på 2,0 GB. Større fil, kortere tid. Forskjellen er at talegjenkjenningen kjører et CUDA-bygg med ferdigkompilerte rutiner, mens språkmodellen kjører Vulkan, som kompilerer ved hver oppstart.
+**Programmet er to prosesser, ikke én.** Talegjenkjenningen på port 8178 gjør lyd om til tekst. Opprydningsmodellen på port 8221 tar imot den teksten og retter tegnsetting og grammatikk. De er uavhengige, og bare den første berøres av hvilken Whisper-modell du velger.
 
-Dette lar seg ikke konfigurere bort. Programmet leverer ett enkelt llama-bygg, med fallback til prosessoren:
+Det er forklaringen på et resultat som ellers er uforståelig: å bytte til stadig mindre Whisper-modeller, helt ned til 141 MB, gir ingen målbar effekt på ventetiden. Flaskehalsen inntreffer etter at Whisper er ferdig.
+
+Og programmet viser ingen egen indikator for det andre leddet. Forsinkelsen inntreffer nøyaktig der man forventer at transkriberingen skjer, så den tilskrives talegjenkjenningen.
+
+**Nedstengingen etter fem minutter er tilsiktet.** En modell på 3 GB som blir liggende, opptar kortet døgnet rundt og fortrenger både nettleseren og talegjenkjenningen. Programmet gir derfor fra seg minnet og betaler oppstarten på nytt ved behov. Avveiningen passer lange, sammenhengende økter. Diktering er det motsatte: korte ytringer med pauser mellom, og da betales oppstarten om og om igjen.
+
+**Et paradoks i målingene.** Talegjenkjenningen laster en modell på 3,1 GB på 9,7 sekunder. Opprydningsmodellen bruker 15,6 sekunder på 2,0 GB. Større fil, kortere tid.
+
+Forskjellen ligger i hvordan de er bygget. Talegjenkjenningen kjører et CUDA-bygg med ferdigkompilerte rutiner; oppstarten er i hovedsak overføring av vekter fra disk til kort. Språkmodellen kjører Vulkan, som bygger sine beregningsrutiner ved oppstart.
+
+Vulkan-kompileringen er den mest nærliggende forklaringen på differansen, men den er ikke isolert og målt her — det er en slutning fra tallene, ikke et eget måleresultat.
+
+Uansett årsak lar det seg ikke konfigurere bort. Programmet leverer ett enkelt llama-bygg:
 
 ```
 %APPDATA%\open-whispr\bin\
@@ -115,16 +135,12 @@ Dette lar seg ikke konfigurere bort. Programmet leverer ett enkelt llama-bygg, m
    whisper-cuda
 ```
 
-Noen CUDA-variant for språkmodellen finnes ikke, heller ikke på NVIDIA-maskiner.
-
-De to komponentene er selvstendige prosesser på hver sin port — talegjenkjenningen på 8178, språkmodellen på 8221. Den første gjør lyd om til tekst, den andre skriver om teksten etterpå. Bytte av Whisper-modell berører bare det første leddet, og forkorter derfor ikke ventetiden.
-
-At forsinkelsen forveksles med treg talegjenkjenning, følger av at den inntreffer etter at tasten slippes, nøyaktig der transkriberingen forventes å skje. Programmet viser ingen egen indikator for opprydningssteget.
+Ingen CUDA-variant for språkmodellen følger med, heller ikke på NVIDIA-maskiner.
 
 Tre alternativer:
 
-* Slå funksjonen av under Settings → AI Models → «Enable text cleanup». NB-Whisper leverer velformet norsk tekst uten etterbehandling.
-* Velg en mindre modell. Gemma 3 1B (0,81 GB) dekker over 140 språk, norsk inkludert. Llama 3.2 oppgir offisiell støtte for åtte språk, og norsk er ikke blant dem. Qwen3-familien kan la resonneringstekst følge med i utdataene. Mindre modell forkorter to av de fire oppstartsleddene, men ikke shaderkompileringen.
+* Slå funksjonen av under Settings → Language Models → fanen «Dictation Cleanup» → «Enable text cleanup». NB-Whisper leverer velformet norsk tekst uten etterbehandling.
+* Velg en mindre modell. Gemma 3 1B (0,81 GB) dekker over 140 språk, norsk inkludert. Llama 3.2 oppgir offisiell støtte for åtte språk, og norsk er ikke blant dem. Qwen3-familien kan la resonneringstekst følge med i utdataene. En mindre modell forkorter innlastingen, men ikke den delen av oppstarten som er uavhengig av størrelse.
 * Sett opprydningen til en ekstern server, som beskrevet nedenfor. Det er den eneste løsningen som fjerner ventetiden helt.
 
 ### Ekstern språkmodell som fjerner oppstartstiden
@@ -143,7 +159,7 @@ ollama pull gemma3:1b
 setx OLLAMA_KEEP_ALIVE -1
 ```
 
-I programmet velges deretter egendefinert leverandør under Settings → AI Models, med adressen `http://127.0.0.1:11434/v1`.
+I programmet velges deretter «Self-Hosted» under Settings → Language Models, med adressen `http://127.0.0.1:11434/v1`, i hver av fanene du vil bruke.
 
 Kostnaden er en bakgrunnstjeneste som holder på minnet permanent. En modell på 1 GB ved siden av NB-Whispers 1,6 GB legger beslag på 2,6 GB av et kort på 8 GB, hvilket lar seg forsvare. En større modell gjør det ikke.
 
@@ -264,7 +280,33 @@ Gemma 3 1B skrev om ord den ikke hadde grunnlag for å endre. I én diktering bl
 
 Opprydningen ble derfor slått av for diktering. NB-Whisper leverer velformet norsk på egen hånd, og feilene den gjør er synlige feil. For tekst som skal publiseres, er det en bedre avveining enn en liten språkmodell som retter tegnsetting og samtidig gjetter på ord.
 
-Konklusjonen gjelder en modell på 1 milliard parametere, og den bygger på observasjon i bruk, ikke på en systematisk test. Om en større modell ville unngått ordbyttene, er ikke prøvd — et kort på 8 GB har uansett ikke minne til en slik modell ved siden av talegjenkjenningen.
+**Testet på nytt med en fire ganger større modell.** Da opprydningen var slått av, ble det ledig minne på kortet, og Gemma 3 4B (2,49 GB) fikk plass ved siden av talegjenkjenningen. Antakelsen var at flere parametere ville gi mindre gjetting.
+
+Testen brukte de 1801 ordene fra 15 minutter stortingstale, kjørt gjennom programmets egen opprydningsinstruks, sammenlignet ord for ord mot råteksten:
+
+| | |
+|---|---|
+| Ord inn | 1801 |
+| Ord ut | 1666 |
+| Erstattet | 160 |
+| Slettet | 84 |
+| Lagt til | 19 |
+| **Andel av teksten endret** | **14,6 %** |
+
+135 ord forsvant. Og blant erstatningene:
+
+```
+FRA:  ... skal bli regulert i forskrift. Likevel har ...
+TIL:  ... skal bli regulert i forskrift. Senterpartiet har ...
+```
+
+Modellen satte inn et partinavn som aldri ble sagt, i en tekst om stortingsbehandling. Setningen er grammatisk korrekt og fullt plausibel, og ville passert enhver rask korrekturlesing.
+
+Andre eksempler fra samme kjøring: «og det gir oss muligheter for» ble til «samt»; «gjort framlegg om» ble til «foreslått». Innhold komprimeres bort, og talerens egne ord normaliseres.
+
+Fire ganger så mange parametere gjorde det altså ikke tryggere. Det er heller ikke overraskende når man leser instruksen programmet sender med: den ber uttrykkelig modellen «fix obvious transcription errors from context». Ordbyttene er tilsiktet oppførsel, ikke en feil — og modellen har ingen måte å vite hva som faktisk var en feil.
+
+For tekst som skal publiseres, med tall, kilder og egennavn, er det feil verktøy uansett størrelse.
 
 ## Feilsøking
 
