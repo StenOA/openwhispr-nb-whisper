@@ -179,6 +179,34 @@ Alle tall nedenfor er målt på den samme maskinen, med NB-Whisper Large kvantis
 
 Skjermkortets 8 GB er den avgjørende begrensningen i alt som følger. På et kort med mer minne faller flere av avveiningene annerledes ut.
 
+### Hvor rask er talegjenkjenningen
+
+Målt i to omganger, med den kvantiserte NB-modellen på skjermkortet.
+
+**Kontrollerte lengder.** Syntetisk tale fra Windows-stemmen Microsoft Jon (nb-NO), sendt direkte til `whisper-server` på port 8178:
+
+| Lyd inn | Prosessering | Andel av taletiden |
+|---|---|---|
+| 24 s | 1 988 ms | 8,2 % |
+| 32 s | 2 108 ms | 6,7 % |
+| 73 s | 5 333 ms | 7,3 % |
+| 100 s | 6 286 ms | 6,3 % |
+| 145 s | 6 959 ms | 4,8 % |
+| 291 s | 9 513 ms | 3,3 % |
+
+**Ekte tale.** Norwegian Parliamentary Speech Corpus fra Nasjonalbiblioteket — opptak fra stortingssalen med kontrollerte transkripsjoner, utgitt som CC0. Ekte stemmer, ekte akustikk fra et rom med mikrofonanlegg, og mange ulike talere.
+
+| Materiale | Lyd inn | Prosessering | Andel |
+|---|---|---|---|
+| 25 enkeltinnlegg | 206 s | 17,3 s | 8,4 % |
+| 99 innlegg satt sammen | 900 s (15 min) | 56,7 s | 6,3 % |
+
+Prosesseringen ligger altså på **5–8 % av tiden det tok å si det**, og andelen synker med lengden fordi den faste oppstartskostnaden fordeles på mer lyd. Femten minutter sammenhengende tale ble transkribert komplett på under ett minutt.
+
+For vanlig diktering betyr det at modellen er ferdig på under ett sekund. Den observerte ventetiden på 1,5–2 sekunder er altså i hovedsak programmets eget arbeid med å ta imot opptaket og lime inn teksten, ikke talegjenkjenningen.
+
+**Treffsikkerhet er ikke målt her.** Det ble forsøkt mot fasitene i korpuset, men tallet blir misvisende: Stortingets transkripsjoner skriver tall som ord etter uttale — «innstilling hundre og énogsytti L tjueseksten tjuesytten» der modellen skriver «Innst. 171 L for 2016–2017». Samme innhold, men hvert siffer telles som feil. En reell måling krever normalisering av tall, forkortelser og egennavn, og det er ikke gjort. Tallene over gjelder derfor fart, ikke kvalitet.
+
 ### Utgangspunktet
 
 | Ledd | Tid |
