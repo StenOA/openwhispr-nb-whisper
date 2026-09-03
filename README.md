@@ -8,7 +8,7 @@ Bokmål og nynorsk ligger i samme modellfil. Det trengs ingen egen nynorskmodell
 
 Endringen er 28 linjer fordelt på tre filer i modell- og språkregisteret. Ingen annen del av programmet er berørt.
 
-**Forutsetninger.** Selve patchen er plattformuavhengig — det er ren JSON og TypeScript. Byggeoppskrifta og alle målinger i dette dokumentet gjelder derimot **Windows med et NVIDIA-kort**. Modellene kjører også på prosessoren, men da med flere sekunders ventetid per ytring i stedet for under to.
+**Forutsetninger.** Selve patchen er plattformuavhengig — det er ren JSON og TypeScript. Byggeoppskrifta og alle målinger i dette dokumentet gjelder derimot **Windows med et NVIDIA-kort**. Modellene kjører også på prosessoren, men da med flere sekunders ventetid per ytring i stedet for under to. Bruker du Mac, se avsnittet [macOS](#macos) nederst.
 
 Tallene er målt på én bestemt maskin — en Intel i9-9900K med RTX 2070 og 8 GB skjermminne. [Full spesifikasjon står under Målinger](#målinger). Skjermkortets 8 GB er den avgjørende begrensningen i det meste av det som følger.
 
@@ -301,6 +301,12 @@ En modellfil som er noe mindre enn oppgitt størrelse blir ikke avvist. `validat
 ## Avinstallering
 
 Avinstallasjon fjerner `.cache/openwhispr/models`, men lar `.cache/openwhispr/whisper-models` stå. Whisper-modellene må slettes manuelt dersom diskplassen skal frigjøres.
+
+## macOS
+
+macOS-pakker kan ikke bygges fra Windows, så denne oppskrifta hjelper deg ikke direkte på en Mac.
+
+Men modellen gjør det. [VoiceInk](https://github.com/Beingpax/VoiceInk) er et fritt dikteringsprogram for macOS som kan importere den samme `.bin`-filen fra Nasjonalbiblioteket. Last ned [ggml-model-q5_0.bin](https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model-q5_0.bin) og legg den inn der. Da får du de norske modellene på Mac uten å bygge noe selv.
 
 ## In English
 
